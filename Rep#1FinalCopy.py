@@ -46,14 +46,14 @@ class NDVIAnalyzer:
         """Analyze NDVI values and generate assessment"""
         mean_ndvi = np.mean(ndvi_values)
 
-        if mean_ndvi >= 0.5:
-            assessment = "Low drought risk (Healthy vegetation)"
+        if mean_ndvi >= 0.66:
+            assessment = "Low drought likelihood (Healthy vegetation)"
             status = "success"
-        elif mean_ndvi >= 0.2:
-            assessment = "Moderate drought risk (Watch conditions)"
+        elif mean_ndvi >= 0.33:
+            assessment = "Moderate drought likelihood (Watch conditions)"
             status = "warning"
         else:
-            assessment = "High drought risk (Action needed)"
+            assessment = "High drought likelihood (Action needed)"
             status = "error"
 
         return mean_ndvi, assessment, status
