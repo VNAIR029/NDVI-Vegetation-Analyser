@@ -10,3 +10,6 @@ Additonally, it can classify these images in two diffrent modes, by simply doing
 Furthermore, it can analyse entire directories as well as single images.
 
 I'll be making a Medium article soon about my process in making this as well as the purpose behind it.
+
+## Cool Stuff
+I've turned my analyzer into a Streamlit app and you can check it out here - https://ndvi-vegetation-analyser-aiy4vwhzlum3taeujqxo9t.streamlit.app/
