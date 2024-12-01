@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import streamlit as st
 import numpy as np
 import seaborn as sns
+import pandas as pd
 from PIL import Image
 from pathlib import Path
 import io
@@ -41,45 +42,55 @@ def process_single_image(image):
     ndvi = calculate_synthetic_ndvi(image_array)
     return ndvi
 
-def visualize_ndvi_distribution(ndvi):
+def visualize_ndvi_distribution(ndvi, filename=None):
     """
     Create a Seaborn visualization of NDVI value distribution.
     
     Parameters:
     ndvi (numpy.ndarray): Synthetic NDVI image array
+    filename (str, optional): Name of the image file
     
     Returns:
-    matplotlib.figure.Figure: Figure with NDVI distribution visualization
+    tuple: (matplotlib.figure.Figure, pandas.DataFrame)
     """
     # Flatten the NDVI array for distribution plotting
     ndvi_flat = ndvi.flatten()
+    
+    # Create a DataFrame for more detailed analysis
+    ndvi_df = pd.DataFrame({
+        'NDVI_Values': ndvi_flat
+    })
+    
+    # Compute detailed statistics
+    ndvi_stats = ndvi_df['NDVI_Values'].describe()
     
     # Create a figure with two subplots
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
     
     # Histogram with Seaborn
-    sns.histplot(ndvi_flat, kde=True, color='skyblue', ax=ax1)
-    ax1.set_title('NDVI Value Distribution')
+    sns.histplot(ndvi_df['NDVI_Values'], kde=True, color='skyblue', ax=ax1)
+    ax1.set_title(f'NDVI Value Distribution\n{filename or ""}')
     ax1.set_xlabel('NDVI Value')
     ax1.set_ylabel('Frequency')
     
     # Box plot with Seaborn
-    sns.boxplot(x=ndvi_flat, color='lightgreen', ax=ax2)
+    sns.boxplot(x=ndvi_df['NDVI_Values'], color='lightgreen', ax=ax2)
     ax2.set_title('NDVI Value Box Plot')
     ax2.set_xlabel('NDVI Value')
     
-    # Add some statistical annotations
+    # Add statistical annotations
     stats_text = (
-        f"Mean NDVI: {np.mean(ndvi_flat):.4f}\n"
-        f"Median NDVI: {np.median(ndvi_flat):.4f}\n"
-        f"Min NDVI: {np.min(ndvi_flat):.4f}\n"
-        f"Max NDVI: {np.max(ndvi_flat):.4f}"
+        f"Mean NDVI: {ndvi_stats['mean']:.4f}\n"
+        f"Median NDVI: {ndvi_stats['50%']:.4f}\n"
+        f"Min NDVI: {ndvi_stats['min']:.4f}\n"
+        f"Max NDVI: {ndvi_stats['max']:.4f}\n"
+        f"Standard Deviation: {ndvi_stats['std']:.4f}"
     )
     plt.figtext(0.5, -0.05, stats_text, ha='center', fontsize=10)
     
     plt.tight_layout()
     
-    return fig
+    return fig, ndvi_stats
 
 def main():
     # File uploader for single image
@@ -108,11 +119,25 @@ def main():
         plt.close(fig)  # Close the figure to free up memory
         
         # Visualize NDVI Distribution
-        distribution_fig = visualize_ndvi_distribution(ndvi)
+        distribution_fig, ndvi_stats = visualize_ndvi_distribution(ndvi, uploaded_file.name)
         st.pyplot(distribution_fig)
         plt.close(distribution_fig)
         
-        # Download button for the single image processing
+        # Display NDVI statistics as a DataFrame
+        st.write("NDVI Statistics:")
+        st.dataframe(ndvi_stats)
+        
+        # Option to download NDVI statistics
+        ndvi_stats_df = pd.DataFrame([ndvi_stats])
+        csv = ndvi_stats_df.to_csv(index=False)
+        st.download_button(
+            label="Download NDVI Statistics",
+            data=csv,
+            file_name=f"ndvi_stats_{uploaded_file.name.split('.')[0]}.csv",
+            mime="text/csv"
+        )
+        
+        # Download button for the NDVI image
         buf = io.BytesIO()
         plt.figure(figsize=(8, 6))
         plt.imshow(ndvi, cmap='RdYlGn', vmin=0, vmax=1)
@@ -161,11 +186,13 @@ def main():
                 
                 # Prepare to collect NDVI statistics across all images
                 all_ndvi_values = []
+                ndvi_stats_list = []
                 
                 # Save processed images
                 for filename, ndvi in processed_images:
                     # Flatten NDVI values for overall statistics
-                    all_ndvi_values.extend(ndvi.flatten())
+                    ndvi_flat = ndvi.flatten()
+                    all_ndvi_values.extend(ndvi_flat)
                     
                     fig, ax = plt.subplots(figsize=(8, 6))
                     im = ax.imshow(ndvi, cmap='RdYlGn', vmin=0, vmax=1)
@@ -177,13 +204,34 @@ def main():
                     output_path = os.path.join(output_dir, f"ndvi_{filename.split('.')[0]}.png")
                     plt.savefig(output_path, bbox_inches='tight', pad_inches=0.1)
                     plt.close(fig)  # Close the figure to free up memory
+                    
+                    # Compute and store statistics for each image
+                    _, image_stats = visualize_ndvi_distribution(ndvi, filename)
+                    ndvi_stats_list.append({
+                        'Filename': filename,
+                        **image_stats
+                    })
                 
-                # Create and save distribution plot for entire directory
+                # Create directory-wide distribution plot
                 if all_ndvi_values:
                     directory_ndvi = np.array(all_ndvi_values)
-                    dir_distribution_fig = visualize_ndvi_distribution(directory_ndvi)
+                    dir_distribution_fig, _ = visualize_ndvi_distribution(directory_ndvi, "All Images")
                     st.pyplot(dir_distribution_fig)
                     plt.close(dir_distribution_fig)
+                
+                # Create a DataFrame of NDVI statistics and display
+                ndvi_stats_dataframe = pd.DataFrame(ndvi_stats_list)
+                st.write("NDVI Statistics for All Images:")
+                st.dataframe(ndvi_stats_dataframe)
+                
+                # Option to download full statistics
+                csv = ndvi_stats_dataframe.to_csv(index=False)
+                st.download_button(
+                    label="Download Full NDVI Statistics",
+                    data=csv,
+                    file_name="ndvi_directory_stats.csv",
+                    mime="text/csv"
+                )
                 
                 st.success(f"Results saved to {output_dir}")
             else:
